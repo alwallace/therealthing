@@ -3,7 +3,7 @@ import atexit
 import random
 
 UDP_IP="127.0.0.1"
-UDP_PORT_IN=10000
+UDP_PORT_IN=9998
 
 STATE_SIZE = 20
 ACTION_SIZE = 5

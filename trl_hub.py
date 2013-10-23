@@ -1,26 +1,17 @@
 import socket
 import atexit
-
-UDP_IP="127.0.0.1"
-UDP_PORT_IN=7100
-UDP_PORT_RESPONSE=6100
-
-UDP_IP_NEW_TOKEN='127.0.0.1'
-UDP_PORT_NEW_TOKEN=7300
-
-UDP_LOG_IP = '127.0.0.1'
-UDP_LOG_PORT = 9999
+import trl_constants
 
 osock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-osock.bind((UDP_IP, UDP_PORT_RESPONSE))
+osock.bind((trl_constants.UDP_IP_HUB, trl_constants.UDP_PORT_HUB_RESPONSE))
 
 def log(msg):
-	osock.sendto('trl_hub.py: ', (UDP_LOG_IP, UDP_LOG_PORT))
-	osock.sendto(msg+'\n', (UDP_LOG_IP, UDP_LOG_PORT))
+	osock.sendto('trl_hub.py: ', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
+	osock.sendto(msg+'\n', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
 
 def process_token(osock, token):
-	osock.sendto(token, (UDP_IP_NEW_TOKEN, UDP_PORT_NEW_TOKEN))
-	log( 'sent token <' + UDP_IP_NEW_TOKEN + ':' + str(UDP_PORT_NEW_TOKEN) + '>:' + token)
+	osock.sendto(token, (trl_constants.UDP_IP_NEW_TOKEN, trl_constants.UDP_PORT_NEW_TOKEN_IN))
+	log( 'sent token <' + trl_constants.UDP_IP_NEW_TOKEN + ':' + str(trl_constants.UDP_PORT_NEW_TOKEN_IN) + '>:' + token)
 
 def cleanup(sock, osock):
 	log( 'Cleaned.')
@@ -29,9 +20,11 @@ def cleanup(sock, osock):
 
 def main():
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	sock.bind((UDP_IP, UDP_PORT_IN))
+	sock.bind((trl_constants.UDP_IP_HUB, trl_constants.UDP_PORT_HUB_IN))
 
 	atexit.register(cleanup, sock, osock)
+	log('trl_hub LOADED')
+	osock.sendto('loaded', trl_constants.TRL_PROCESS_NET)
 
 	while True:
 		data, addr = sock.recvfrom(1024)

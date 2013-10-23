@@ -1,18 +1,6 @@
 import socket
 import atexit
-
-UDP_IP='127.0.0.1'
-UDP_PORT_IN=7300
-UDP_PORT_RESPONSE=6300
-
-UDP_IP_DATABASE='127.0.0.1'
-UDP_PORT_DATABASE=7200
-
-UDP_IP_SHORT_MEM='127.0.0.1'
-UDP_PORT_SHORT_MEM=7201
-
-UDP_LOG_IP = '127.0.0.1'
-UDP_LOG_PORT = 9999
+import trl_constants
 
 MAX_SPATIAL_TOKEN_COUNT_MAX=100
 
@@ -39,17 +27,17 @@ MAX_SPATIAL_TOKEN_COUNT_MAX=100
 VARIABLE_NAME_IDS = {}
 
 osock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-osock.bind((UDP_IP, UDP_PORT_RESPONSE))
+osock.bind((trl_constants.UDP_IP_NEW_TOKEN, trl_constants.UDP_PORT_NEW_TOKEN_RESPONSE))
 
 def log(msg):
-	osock.sendto('trl_new_token.py: ', (UDP_LOG_IP, UDP_LOG_PORT))
-	osock.sendto(msg+'\n', (UDP_LOG_IP, UDP_LOG_PORT))
+	osock.sendto('trl_new_token.py: ', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
+	osock.sendto(msg+'\n', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
 
 def process_token(token, osock):
 
 	# NOW PING THE TOKEN IN THE DB TO CREATE/GET THE ID
-	osock.sendto('PING ' + token, (UDP_IP_DATABASE, UDP_PORT_DATABASE))
-	osock.sendto('GETLASTPINGID', (UDP_IP_DATABASE, UDP_PORT_DATABASE))
+	osock.sendto('PING ' + token, trl_constants.DB_NET)
+	osock.sendto('GETLASTPINGID', trl_constants.DB_NET)
 	data, addr = osock.recvfrom(1024)
 	if data != '':
 		token_id = int(data)
@@ -59,21 +47,21 @@ def process_token(token, osock):
 
 	# NOW MANAGE THE SHORT TERM MEMORY SECTION
 	# 	MANAGE THE SPATIAL RELATIONSHIPS OF THE TOKEN IN STATEMENTS
-	osock.sendto('GET SPATIAL_TOKEN_COUNT', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+	osock.sendto('GET SPATIAL_TOKEN_COUNT', trl_constants.SHORT_MEM_NET)
 	data, addr = osock.recvfrom(1024)
 	if data == '':
 		token_count = 0
 	else:
 		token_count = int(data)
 
-	osock.sendto('GET SPATIAL_LAST_TOKEN_LOCATION', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+	osock.sendto('GET SPATIAL_LAST_TOKEN_LOCATION', trl_constants.SHORT_MEM_NET)
 	data, addr = osock.recvfrom(1024)
 	if data == '':
 		last_token_location = 0
 	else:
 		last_token_location = int(data)
 
-	osock.sendto('GET SPATIAL_TOKEN_COUNT_MAX', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+	osock.sendto('GET SPATIAL_TOKEN_COUNT_MAX', trl_constants.SHORT_MEM_NET)
 	data, addr = osock.recvfrom(1024)
 	if data == '':
 		token_count_max = 0
@@ -81,23 +69,23 @@ def process_token(token, osock):
 		token_count_max = int(data)
 
 	if token_count == 0:
-		osock.sendto('STORE SPATIAL_TOKEN_ID_0 ' + str(token_id), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
-		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION 0', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('STORE SPATIAL_TOKEN_ID_0 ' + str(token_id), trl_constants.SHORT_MEM_NET)
+		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION 0', trl_constants.SHORT_MEM_NET)
 
 	elif last_token_location > MAX_SPATIAL_TOKEN_COUNT_MAX:
-		osock.sendto('STORE SPATIAL_TOKEN_ID_0 ' + str(token_id), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
-		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION 0', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('STORE SPATIAL_TOKEN_ID_0 ' + str(token_id), trl_constants.SHORT_MEM_NET)
+		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION 0', trl_constants.SHORT_MEM_NET)
 	else:
-		osock.sendto('STORE SPATIAL_TOKEN_ID_' + str(last_token_location + 1) + ' ' + str(token_id), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
-		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION ' + str(last_token_location + 1), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('STORE SPATIAL_TOKEN_ID_' + str(last_token_location + 1) + ' ' + str(token_id), trl_constants.SHORT_MEM_NET)
+		osock.sendto('STORE SPATIAL_LAST_TOKEN_LOCATION ' + str(last_token_location + 1), trl_constants.SHORT_MEM_NET)
 	last_token_location = last_token_location + 1
 
 	if token_count < token_count_max:
-		osock.sendto('STORE SPATIAL_TOKEN_COUNT ' + str(token_count + 1), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('STORE SPATIAL_TOKEN_COUNT ' + str(token_count + 1), trl_constants.SHORT_MEM_NET)
 	token_count = token_count + 1
 	
 	if token == '.' or token == '!' or token == '?':
-		osock.sendto('STORE SPATIAL_TOKEN_COUNT 0', (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('STORE SPATIAL_TOKEN_COUNT 0', trl_constants.SHORT_MEM_NET)
 
 
 	# NOW CREATE DATABASE RELATIONS
@@ -110,12 +98,21 @@ def process_token(token, osock):
 		if temp_token_location < 0:
 			temp_token_location = MAX_SPATIAL_TOKEN_COUNT_MAX
 
-		osock.sendto('GET SPATIAL_TOKEN_ID_' + str(temp_token_location), (UDP_IP_SHORT_MEM, UDP_PORT_SHORT_MEM))
+		osock.sendto('GET SPATIAL_TOKEN_ID_' + str(temp_token_location), trl_constants.SHORT_MEM_NET)
 		data, addr = osock.recvfrom(1024)
 		token2_id = int(data)
 
-		osock.sendto('RELATE ' + str(token_id) + ' ' + str(token2_id) + ' ' + str(i) + '_SPACES_FORWARD', (UDP_IP_DATABASE, UDP_PORT_DATABASE))
-		log( 'RELATE ' + str(token_id) + ' ' + str(token2_id) + ' ' + str(i) + '_SPACES_FORWARD')
+		spaces_forward_temp = str(i) + '_SPACES_FORWARD'
+		osock.sendto('GETID ' + spaces_forward_temp, trl_constants.DB_NET)
+		data, addr = osock.recvfrom(1024)
+		trashdata = ''
+		while trashdata != '.':
+			trashdata, addr = osock.recvfrom(1024)
+
+		spaces_forward_temp_id = data
+
+		osock.sendto('RELATE ' + str(token_id) + ' ' + str(token2_id) + ' ' + spaces_forward_temp_id, trl_constants.DB_NET)
+		log( 'RELATE ' + str(token_id) + ' ' + str(token2_id) + ' ' + spaces_forward_temp_id)
 
 		i = i+1
 
@@ -130,9 +127,11 @@ def cleanup(sock, osock):
 
 def main():
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	sock.bind((UDP_IP, UDP_PORT_IN))
+	sock.bind((trl_constants.UDP_IP_NEW_TOKEN, trl_constants.UDP_PORT_NEW_TOKEN_IN))
 
 	atexit.register(cleanup, sock, osock)
+	log('trl_new_token LOADED')
+	osock.sendto('loaded', trl_constants.TRL_PROCESS_NET)
 
 	while True:
 		data, addr = sock.recvfrom(1024)

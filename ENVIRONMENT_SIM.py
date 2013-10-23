@@ -5,7 +5,7 @@ import random
 UDP_IP="127.0.0.1"
 UDP_PORT_IN=9998
 
-STATE_SIZE = 20
+STATE_SIZE = 10
 ACTION_SIZE = 5
 
 CURRENT_STATE = 0
@@ -47,8 +47,10 @@ def sendActionList(addr, osock):
 
 def takeAction(action):
 	global CURRENT_STATE
+	print 'STATE UPDATE: ' + str(CURRENT_STATE) + ' -> ',
 	if action >= 0 and action < ACTION_SIZE:
 		CURRENT_STATE = state_action_array[CURRENT_STATE][action]
+	print str(CURRENT_STATE)
 
 def sendCurrentState(addr, osock):
 	osock.sendto(str(CURRENT_STATE), addr)
@@ -75,16 +77,16 @@ def main():
 		data = data.rstrip()
 		print 'received message <', addr, '>:', data
 
-		if data == 'action_list':
+		if data == 'ACTION_LIST':
 			print 'Get ACTION_LIST'
 			sendActionList(addr, sock)
-		elif data == 'current_state':
+		elif data == 'CURRENT_STATE':
 			print 'CURRENT_STATE:', str(CURRENT_STATE), '<' + data + '>'
 			sendCurrentState(addr, sock)
 		else:
 			data = data.split(' ')
 
-			if data[0] == 'perform_action':
+			if data[0] == 'PERFORM_ACTION':
 				print 'PERFORM_ACTION:', str(data[1])
 				takeAction(int(data[1]))
 

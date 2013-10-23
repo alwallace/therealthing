@@ -1,74 +1,81 @@
 import sqlite3
 import socket
 import atexit
-
-UDP_IP='127.0.0.1'
-UDP_PORT_IN=7200
-UDP_PORT_RESPONSE=6200
-
-UDP_LOG_IP = '127.0.0.1'
-UDP_LOG_PORT = 9999
+import trl_constants
 
 last_ping_id = -1
+last_relation_id = -1
+
+TIME_ELAPSED =  0
 
 osock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-osock.bind((UDP_IP, UDP_PORT_RESPONSE))
+osock.bind((trl_constants.UDP_IP_DB, trl_constants.UDP_PORT_DB_RESPONSE))
 
 def log(msg):
-	osock.sendto('trl_db.py: ', (UDP_LOG_IP, UDP_LOG_PORT))
-	osock.sendto(msg+'\n', (UDP_LOG_IP, UDP_LOG_PORT))
+	osock.sendto('trl_db.py: ', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
+	osock.sendto(msg+'\n', (trl_constants.UDP_IP_LOG, trl_constants.UDP_PORT_LOG_IN))
+
+def initializeDB(c):
+	c.execute('DROP TABLE nodes')
+	c.execute('DROP TABLE relations')
+	c.execute('CREATE TABLE nodes (id INTEGER PRIMARY KEY, value BLOB)')
+	c.execute('CREATE TABLE relations (id INTEGER PRIMARY KEY, nid1 INTEGER, nid2 INTEGER, tid INTEGER, timestamp INTEGER)')
+
+	c.execute('INSERT INTO nodes (value) VALUES ("UNDEFINED_RELATION")')
+	log('constant DB_UNDEFINED_RELATION_ID = ' + str(c.lastrowid))
+
+	c.execute('INSERT INTO nodes (value) VALUES ("1_SPACES_FORWARD")')
+	log('constant 1_SPACES_FORWARD_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("2_SPACES_FORWARD")')
+	log('constant 2_SPACES_FORWARD_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("3_SPACES_FORWARD")')
+	log('constant 3_SPACES_FORWARD_ID = ' + str(c.lastrowid))
+
+	c.execute('INSERT INTO nodes (value) VALUES ("IS_STATE")')
+	log('constant IS_STATE_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("IS_ACTION")')
+	log('constant IS_ACTION_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("IS_TIME")')
+	log('constant IS_TIME_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("IS_POSSIBLE_ACTION")')
+	log('constant IS_POSSIBLE_ACTION_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("IS_POSSIBLE_STATE")')
+	log('constant IS_POSSIBLE_STATE_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("CURRENT")')
+	log('constant CURRENT_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("TIME_ELAPSED")')
+	log('constant TIME_ELAPSED_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("DECISION")')
+	log('constant DECISION_ID = ' + str(c.lastrowid))
+
+	c.execute('INSERT INTO nodes (value) VALUES ("THIS")')
+	log('constant THIS_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("THEN")')
+	log('constant THEN_ID = ' + str(c.lastrowid))
+	c.execute('INSERT INTO nodes (value) VALUES ("VIA")')
+	log('constant VIA_ID = ' + str(c.lastrowid))
 
 def pingvalue(node_value, c):
 	global last_ping_id
-	c.execute('SELECT id FROM nodes WHERE value=?', (node_value,))
-	row = c.fetchone()
-	if row == None:
-		c.execute('INSERT INTO nodes (value) VALUES (?)', (node_value,))
-		nid = c.lastrowid
-	else:
-		nid = row[0]
+	c.execute('INSERT INTO nodes (value) VALUES (?)', (node_value,))
+	nid = c.lastrowid
 
 	last_ping_id = int(nid)
 
-	log(' -> PING: ' + str(nid) + node_value)
+	log(' -> PING: ' + str(nid) + ' ' + node_value)
 
-def rpingvalue(relation_type_value, c):
-	global last_ping_id
-	c.execute('SELECT id FROM r_type WHERE value=?', (relation_type_value,))
-	row = c.fetchone()
-	if row == None:
-		c.execute('INSERT INTO r_type (value) VALUES (?)', (relation_type_value,))
-		tid = c.lastrowid
-	else:
-		tid = row[0]
-
-	last_ping_id = int(tid)
-
-	log(' -> RPING: ' + str(tid) + relation_type_value)
 
 def getid(osock, addr, node, c):
 	c.execute('SELECT id FROM nodes WHERE value=?', (node,))
-	row = c.fetchone()
-	if row == None:
-		nid = '-1'
+	rows = c.fetchall()
+	if len(rows) != 0:
+		for row in rows:
+			osock.sendto(str(row[0]), addr)
+			log( ' -> GETID: ' + str(row[0]))
 	else:
-		nid = str(row[0])
+		log(' -> GETID: not valid id')
 
-	osock.sendto(nid, addr)
-
-	log( ' -> GETID: ' + str(nid) + node)
-
-def gettid(osock, addr, relation_type, c):
-	c.execute('SELECT id FROM r_type WHERE value=?', (relation_type,))
-	row = c.fetchone()
-	if row == None:
-		nid = '-1'
-	else:
-		nid = str(row[0])
-
-	osock.sendto(nid, addr)
-
-	log( ' -> GETTID: ' + str(nid) + relation_type)
+	osock.sendto('.', addr)
 
 def getvalue(osock, addr, node_id, c):
 	c.execute('SELECT value FROM nodes WHERE id=?', (node_id,))
@@ -80,60 +87,57 @@ def getvalue(osock, addr, node_id, c):
 
 	osock.sendto(nvalue, addr)
 
-	log( ' -> GETVALUE: ' + str(node_id) + nvalue)
-
-def gettvalue(osock, addr, relation_type_id, c):
-	c.execute('SELECT value FROM r_type WHERE id=?', (relation_type_id,))
-	row = c.fetchone()
-	if row == None:
-		tvalue = ''
-	else:
-		tvalue = str(row[0])
-
-	osock.sendto(tvalue, addr)
-
-	log( ' -> GETTVALUE: ' + str(relation_type_id) + tvalue)
+	log( ' -> GETVALUE: ' + nvalue)
 
 def getlastpingid(osock, addr):
+	log('GETLASTPINGID -> ' + str(last_ping_id))
+
 	osock.sendto(str(last_ping_id), addr)
 
+def getlastrelationid(osock, addr):
+	log('GETLASTRELATIONID -> ' + str(last_relation_id))
+
+	osock.sendto(str(last_relation_id), addr)
+
 def relate(node1_id, node2_id, relation_type_id, c):
-	log(  str(node1_id) + str(node2_id) + str(relation_type_id))
+	global last_relation_id
 
-	c.execute('SELECT id, nid1, nid2, tid, count FROM relations WHERE nid1=? AND nid2=? AND tid=?', (node1_id, node2_id, relation_type_id,))
+	c.execute('SELECT id, nid1, nid2, tid FROM relations WHERE nid1=? AND nid2=? AND tid=?', (node1_id, node2_id, relation_type_id,))
 	row = c.fetchone()
+	rid = 0
 	if row == None:
-		c.execute('INSERT INTO relations (nid1, nid2, tid, count) VALUES (?, ?, ?, ?)', (node1_id, node2_id, relation_type_id, '1',))
+		c.execute('INSERT INTO relations (nid1, nid2, tid, timestamp) VALUES (?, ?, ?, ?)', (node1_id, node2_id, relation_type_id, TIME_ELAPSED,))
 		rid = int(c.lastrowid)
-	else:
-		rid = int(row[0])
-		rel_count = int(row[4])
-		c.execute('UPDATE relations SET count=? WHERE id=?', (str(rel_count + 1), rid,))
 
-	log(  ' -> RELATE: (' + str(rid) + ') ' + str(node1_id) + ' ==(' + str(relation_type_id) + ')>> ' + str(node2_id))
+	last_relation_id = rid
+	log(  ' -> RELATE: (' + str(rid) + ') ' + str(node1_id) + ' ==(' + str(relation_type_id) + ')>> ' + str(node2_id) + ' @ ' + str(TIME_ELAPSED))
 
 def getrrelated(osock, addr, node1_id, relation_type_id, c):
-	log(  str(node1_id) + str(relation_type_id))
-
 	c.execute('SELECT nid2 FROM relations WHERE nid1=? AND tid=?', (node1_id, relation_type_id, ))
 	nids = c.fetchall()
 
-	if nids == None:
-		osock.sendto('', addr)
-	else:
-		outstr = ''
+	
+
+	if len(nids) != 0:
+		nids = nids[0]
+		log(' -> GETRRELATED: ' + str(nids))
 		for nid in nids:
-			outstr = outstr + nid + ' '
-		osock.sendto(outstr, addr)
+			osock.sendto(str(nid), addr)
+	else:
+		log(' -> GETRRELATED: not valid id')
+
+	osock.sendto('.', addr)
 
 def destroynode(node_id, c):
-	log(  str(node_id))
-
 	c.execute('DELETE FROM nodes WHERE id=?', (node_id, ))
 	c.execute('DELETE FROM relations WHERE nid1=?', (node_id, ))
 
 	log(  ' -> DESTROYNODE:' + str(node_id))
 
+def destroyrelation(relation_id, c):
+	c.execute('DELETE FROM relations WHERE id=?', (relation_id, ))
+
+	log(' -> DESTROYRELATION:' + str(relation_id))
 
 def cleanup(sock, osock):
 	log(  'Cleaned.' )
@@ -142,13 +146,18 @@ def cleanup(sock, osock):
 	
 
 def main():
+	global TIME_ELAPSED
+
 	conn = sqlite3.connect('./database.sqlite')
 	c = conn.cursor()
 
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	sock.bind((UDP_IP, UDP_PORT_IN))
+	sock.bind((trl_constants.UDP_IP_DB, trl_constants.UDP_PORT_DB_IN))
 
 	atexit.register(cleanup, sock, osock)
+	initializeDB(c)
+	log('trl_db LOADED')
+	osock.sendto('loaded', trl_constants.TRL_PROCESS_NET)
 
 	while True:
 		data, addr = sock.recvfrom(1024)
@@ -162,48 +171,36 @@ def main():
 		if split_data[0] == 'PING':
 			pingvalue(split_data[1], c)
 
-		# syntax: RPING <RELATION_TYPE_VALUE>
-		# function: add relation to database if it does not exist. Also set last relation ping to this new value
-		elif split_data[0] == 'RPING':
-			rpingvalue(split_data[1], c)
-
 		# syntax: GETID <NODE_VALUE>
-		# function: get the id of the 'value'
+		# function: get the id of the 'value', maybe a list of id's, come one per line finished by a '.' packet
 		elif split_data[0] == 'GETID':
 			getid(osock, addr, split_data[1], c)
-
-		# syntax: GETTID <RELATION_TYPE_VALUE>
-		# function: get the id of the 'relation type'
-		elif split_data[0] == 'GETTID':
-			gettid(osock, addr, split_data[1], c)	
 
 		# syntax: GETLASTPINGID 
 		# function: get the last ping id
 		elif split_data[0] == 'GETLASTPINGID':
 			getlastpingid(osock, addr)
 
+		# syntax: GETLASTRELATIONID
+		# function: get the last relation id
+		elif split_data[0] == 'GETLASTRELATIONID':
+			getlastrelationid(osock, addr)
+
 		# syntax: GETVALUE <NODE_ID>
 		# function: get the 'value' based on the id
 		elif split_data[0] == 'GETVALUE':
 			getvalue(osock, addr, split_data[1], c)
 
-		# syntax: GETTVALUE <RELATION_TYPE_ID>
-		# function: get the relation type based on the id
-		elif split_data[0] == 'GETTVALUE':
-			gettvalue(osock, addr, split_data[1], c)
-
 		# syntax: RELATE <NODE1_ID> <NODE2_ID> <RELATION_TYPE_ID>
-		# function: create a new relation of relation type between the nodes. If one exists increment the relation count
+		# function: create a new relation of relation type between the nodes.
 		elif split_data[0] == 'RELATE':
 			split_data = split_data[1].split()
-			log(str(split_data))
 			relate(split_data[0], split_data[1], split_data[2], c)
 
 		# syntax: GETRRELATED <NODE1_ID> <RELATION_TYPE_ID>
-		# function: get the nodes that are related to NODE1 via relation type, may be a list of id's.
+		# function: get the nodes that are related to NODE1 via relation type, may be a list of id's. come one per line finished by a '.' packet
 		elif split_data[0] == 'GETRRELATED':
 			split_data = split_data[1].split()
-			log(str(split_data))
 			getrrelated(osock, addr, split_data[0], split_data[1], c)
 
 		# syntax: DESTROYNODE <NODE_ID>
@@ -211,6 +208,15 @@ def main():
 		elif split_data[0] == 'DESTROYNODE':
 			destroynode(split_data[1], c)
 
+		# syntax: DESTROYRELATION <RELATION_ID>
+		# function: remove a relation between two nodes by the id
+		elif split_data[0] == 'DESTROYRELATION':
+			destroyrelation(split_data[1], c)
+
+		# syntax: TICK <elapsed>
+		# function: increases the time that has elapsed for managing timestamp data
+		elif split_data[0] == 'TICK':
+			TIME_ELAPSED = float(split_data[1])
 
 		conn.commit()
 
